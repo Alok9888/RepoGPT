@@ -1,21 +1,21 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: devpilot-postgres
+    container_name: repogpt-postgres
     environment:
-      POSTGRES_DB: RepoGPT
+      POSTGRES_DB: repogpt
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
       - "5433:5432"
     volumes:
-      - devpilot_pg_data:/var/lib/postgresql/data
+      - repogpt_pg_data:/var/lib/postgresql/data
       - ./docker/postgres/init-extensions.sql:/docker-entrypoint-initdb.d/01-extensions.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d RepoGPT"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d repogpt"]
       interval: 5s
       timeout: 5s
       retries: 5
 
 volumes:
-  devpilot_pg_data:
+  repogpt_pg_data:
