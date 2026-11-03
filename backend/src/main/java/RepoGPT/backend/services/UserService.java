@@ -1,38 +1,61 @@
 package RepoGPT.backend.services;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import RepoGPT.backend.repository.UserRepository;
-import org.springframework.security.crypto.encrypt.TextEncryptor;
-import org.springframework.transaction.annotation.Transactional;
-import RepoGPT.backend.entity.User;
+
+import java.util.Map;
 import java.util.UUID;
-import java.util.Optional;
+
+import org.springframework.security.crypto.encrypt.TextEncryptor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import RepoGPT.backend.entity.User;
+import RepoGPT.backend.repository.UserRepository;
+
+import lombok.RequiredArgsConstructor;
+
 @Service
 @RequiredArgsConstructor
 public class UserService {
-  public final UserRepository userRepository;
-  public final TextEncryptor textEncryptor;
+    public final UserRepository userRepository;
+    public final TextEncryptor tokenEncryptor;
+    
+   @Transactional
+    public User upsertFromGitHub(Map<String, Object> attributes, String accessToken, String scopes) {
+        Long githubId = toLong(attributes.get("id"));
+        String login = String.valueOf(attributes.get("login"));
+        String name = attributes.get("name") != null
+                ? String.valueOf(attributes.get("name"))
+                : login;
+        String avatarUrl = attributes.get("avatar_url") != null
+                ? String.valueOf(attributes.get("avatar_url"))
+                : null;
 
-  @Transactional(readOnly = true)
-  public User requiredById(long id){
-    return userRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
-  }
+        String encryptedToken = tokenEncryptor.encrypt(accessToken);
 
-  public String decryptToken(User user) {
-    return textEncryptor.decrypt(user.getAccessToken());
-  }
-
-  private static long toLong(Object value){
-    if (value instanceof Number) {
-      return ((Number) value).longValue();
-    } else if (value instanceof String) {
-      try {
-        return Long.parseLong((String) value);
-      } catch (NumberFormatException e) {
-        throw new IllegalArgumentException("Invalid value for long conversion: " + value);
-      }
-    } else {
-      throw new IllegalArgumentException("Unsupported type for long conversion: " + value.getClass().getName());
+        User user = userRepository.findByGithubId(githubId).orElseGet(User::new);
+        user.setGithubId(githubId);
+        user.setGithubUsername(login);
+        user.setDisplayName(name);
+        user.setAvatarUrl(avatarUrl);
+        user.setAccessToken(encryptedToken);
+        user.setTokenScopes(scopes);
+        return userRepository.save(user);
     }
-  }
+    @Transactional(readOnly = true)
+    public User requiredById(long id) {
+        return userRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("User not found"));
+    }
+
+    public String decryptAccessToken(User user) {
+        return tokenEncryptor.decrypt(user.getAccessToken());
+    }
+
+    private static Long toLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return Long.parseLong(String.valueOf(value));
+    }
+
+   
+
 }
